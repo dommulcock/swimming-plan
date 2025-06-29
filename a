@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive 3-Month Swimming Program</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Waters -->
+    <!-- Application Structure Plan: The application is structured as an interactive weekly planner rather than a linear document. The core design consists of a main dashboard with controls to filter by month and week. This approach was chosen to provide immediate, task-oriented access to any specific workout, which is the primary user goal ("What is my workout today?"). A line chart provides an at-a-glance visualization of the program's progression, offering motivation and context. Key reference information (Concepts, Equipment) is offloaded into modals to keep the main interface clean and focused on the workout details. This structure enhances usability by prioritizing quick navigation and reducing information overload compared to the original long-form text document. -->
+    <!-- Visualization & Content Choices: 
+        - Program Progression: Report's increasing weekly volume -> Goal: Show change -> Viz: Line Chart (Chart.js) -> Interaction: Highlights current week -> Justification: Best method to visualize trends over time.
+        - Workout Structure (Month/Week/Session): Report's hierarchical structure -> Goal: Organize & Navigate -> Viz: HTML/CSS Tabs & Cards -> Interaction: Click filters content -> Justification: Intuitive UI for drill-down.
+        - Workout Details: Report's session text -> Goal: Inform -> Viz: Styled HTML lists within expandable cards -> Interaction: Click to expand/collapse -> Justification: Presents instructions clearly without clutter.
+        - Reference Info (Concepts/Equipment): Report's introductory text -> Goal: Reference -> Viz: HTML/CSS Modals -> Interaction: Button click to open -> Justification: Provides on-demand info without distracting from the main view.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .chart-container { position: relative; width: 100%; max-width: 800px; margin-left: auto; margin-right: auto; height: 300px; max-height: 40vh; }
+        .nav-btn { transition: all 0.2s ease-in-out; }
+        .nav-btn-active { background-color: #0891b2 !important; color: white !important; }
+        .session-card { transition: all 0.3s ease-in-out; border: 1px solid #e5e7eb; }
+        .session-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); }
+        .modal-backdrop {
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            transition: transform 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div id="app" class="container mx-auto px-4 py-8 md:py-12">
+        <header class="text-center mb-8 md:mb-12">
+            <h1 class="text-4xl md:text-5xl font-bold text-cyan-800">Your 3-Month Swim Program</h1>
+            <p class="mt-4 text-lg text-gray-600 max-w-3xl mx-auto">An interactive guide to build your swimming technique and fitness from the ground up. Select a month and week to view your sessions.</p>
+        </header>
+
+        <main>
+            <section id="progress-overview" class="mb-8 md:mb-12">
+                 <h2 class="text-2xl font-bold text-center text-gray-700 mb-4">Total Weekly Volume (meters)</h2>
+                <div class="chart-container bg-white p-4 rounded-lg shadow-md">
+                    <canvas id="progressChart"></canvas>
+                </div>
+            </section>
+            
+            <section id="program-planner" class="bg-white rounded-lg shadow-lg p-6 md:p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-3xl font-bold text-cyan-700">Workout Planner</h2>
+                    <div class="flex space-x-2">
+                        <button id="concepts-btn" class="bg-cyan-100 text-cyan-800 hover:bg-cyan-200 text-sm font-semibold py-2 px-4 rounded-full">Key Concepts</button>
+                        <button id="equipment-btn" class="bg-cyan-100 text-cyan-800 hover:bg-cyan-200 text-sm font-semibold py-2 px-4 rounded-full">Equipment</button>
+                    </div>
+                </div>
+
+                <nav class="mb-6">
+                    <div class="mb-4">
+                        <span class="font-semibold text-gray-500 mr-4">Month:</span>
+                        <div id="month-nav" class="inline-flex rounded-md shadow-sm" role="group"></div>
+                    </div>
+                    <div>
+                        <span class="font-semibold text-gray-500 mr-4">Week:</span>
+                        <div id="week-nav" class="inline-flex rounded-md shadow-sm" role="group"></div>
+                    </div>
+                </nav>
+
+                <div id="session-display">
+                    <h3 id="week-title" class="text-2xl font-bold text-gray-800 mb-2"></h3>
+                    <p id="week-focus" class="text-gray-600 mb-6"></p>
+                    <div id="session-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="text-center mt-12 text-gray-500">
+            <p>Designed to make your swimming journey clear and effective.</p>
+        </footer>
+    </div>
+    
+    <div id="concepts-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden modal-backdrop items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 modal-content scale-95">
+             <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-cyan-800">Key Concepts for Beginners</h2>
+                <button id="close-concepts-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div id="concepts-content" class="space-y-4 text-gray-700"></div>
+        </div>
+    </div>
+    
+    <div id="equipment-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden modal-backdrop items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 modal-content scale-95">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-cyan-800">Equipment Glossary</h2>
+                <button id="close-equipment-modal" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div id="equipment-content" class="space-y-4 text-gray-700"></div>
+        </div>
+    </div>
+
+    <script>
+        const programData = {
+            concepts: [
+                { title: "Breathing", points: ["Exhale Underwater: Always exhale fully while your face is in the water. When you turn to breathe, you only need to inhale. This prevents a feeling of panic and allows for a quicker, smoother breath.", "Rotational Breathing: Don't lift your head straight up. Rotate your head to the side as part of your body roll, keeping one goggle in the water."] },
+                { title: "Body Position", points: ["Horizontal and Streamlined: Aim to be flat in the water, like a torpedo. Keep your head aligned with your spine (looking down slightly forward).", "Core Engagement: Engage your core muscles to prevent your hips and legs from sinking."] },
+                { title: "Kick (Flutter Kick)", points: ["From the Hips: Generate power from your hips, not your knees. Keep your legs relatively straight with a slight bend in the knee.", "Ankles Relaxed: Relax your ankles so your feet act like flippers. Point your toes slightly.", "Small and Consistent: Focus on a continuous, controlled kick rather than big, splashy movements."] },
+                { title: "Pull (Arm Stroke)", points: ["Catch: As your hand enters the water, immediately press down and back, feeling the 'catch' of the water.", "High Elbow: Keep your elbow higher than your hand through the initial pull phase ('early vertical forearm').", "Finish: Push the water all the way past your hip, extending fully.", "Recovery: Bring your arm forward over the water, leading with your elbow."] },
+                { title: "Timing & Coordination", points: ["All parts (kick, pull, breath, body roll) need to work together smoothly."] },
+            ],
+            equipment: [
+                { name: "Flutter Board (Kickboard)", icon: "🏄", purpose: "Develop leg strength, endurance, and proper kick technique by isolating your lower body." },
+                { name: "Fins", icon: " Fins", purpose: "Improve ankle flexibility, strengthen leg muscles, and help maintain good body position with less effort." },
+                { name: "Pull Buoy", icon: " PullBuoy", purpose: "Isolate your upper body by providing flotation for your legs, allowing you to focus on your arm stroke." },
+                { name: "Hand Paddles", icon: " Paddles", purpose: "Build upper body strength and help you 'feel' the water, improving your catch and pull mechanics." },
+            ],
+            months: [
+                {
+                    month: 1,
+                    weeks: [
+                        { week: 1, focus: "Water comfort, basic glides, and getting a feel for the flutter kick.", sessions: [
+                            { session: 1, total: 400, warmup: ["4 x 25m easy swim (any stroke, focus on breath)"], main: ["4 x 25m push off wall and glide (arms extended forward, face in water). Exhale fully underwater. Stand up when you need to breathe.", "4 x 25m flutter kick with <b>flutter board</b>, face in water (focus on small, continuous kick from hips). Breathe by lifting head forward.", "4 x 25m easy swim (freestyle, focus on exhaling underwater and turning to breathe). Take breaks as needed.", "2 x 25m 'Superman Glide' (push off the wall, arms extended, face in water, try to glide as far as possible without kicking/pulling)."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 2, total: 450, warmup: ["4 x 25m easy swim or kick with board."], main: ["6 x 25m flutter kick with <b>flutter board</b>, face in water (focus on relaxed ankles).", "4 x 25m push off wall, glide, then start easy freestyle. Focus on smooth entry and exit of hands.", "4 x 50m easy swim (freestyle, focus on exhaling completely underwater before turning to breathe).", "2 x 25m 'Catch-up' drill (one arm extended forward, the other pulls; don't start next pull until the recovering hand 'catches up' to the lead hand)."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 3, total: 500, warmup: ["4 x 25m easy swim."], main: ["8 x 25m flutter kick with <b>flutter board</b> (alternate 25m face in water, 25m looking forward). Focus on consistent kick.", "6 x 25m easy swim (freestyle, emphasize long strokes and smooth body rotation).", "4 x 50m freestyle, focus on feeling streamlined. Rest 30 seconds between 50s.", "2 x 50m '6-kick switch' drill (glide on side with bottom arm extended, take 6 kicks, then switch to other side, take 6 kicks, etc. Focus on body rotation)."], cooldown: ["2 x 25m easy kick or swim."] },
+                        ]},
+                        { week: 2, focus: "Strengthen the kick, maintain better body position, introduce fins for support.", sessions: [
+                            { session: 1, total: 500, warmup: ["4 x 25m easy swim."], main: ["6 x 25m flutter kick with <b>flutter board</b> and <b>fins</b> (feel the power, focus on extending kick from hips).", "4 x 50m easy swim (freestyle, think about pressing your chest down slightly to raise hips).", "4 x 25m 'Shark Fin' drill (freestyle with one arm extended, the other hand on hip, focusing on body roll and high elbow recovery).", "2 x 50m flutter kick with <b>fins</b> without board (arms extended, face in water)."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 2, total: 550, warmup: ["4 x 25m easy swim or kick."], main: ["8 x 25m flutter kick with <b>flutter board</b>, alternating 25m with fins, 25m without fins.", "6 x 50m easy swim (freestyle, focus on a long, efficient stroke). Rest 30 seconds.", "4 x 25m 'Single Arm Drill' (swim freestyle with one arm stationary extended forward, the other arm performs a full stroke). Focus on body rotation with each stroke.", "2 x 50m continuous kick with <b>fins</b> and board."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 3, total: 600, warmup: ["4 x 25m easy swim."], main: ["8 x 50m freestyle kick with <b>flutter board</b>, alternating 50m with fins, 50m without fins. Focus on maintaining horizontal body position.", "6 x 50m easy swim (freestyle, focus on smooth, efficient breathing). Rest 30 seconds.", "4 x 25m 'Catch-up' drill with <b>fins</b> (helps reinforce long strokes and body rotation).", "2 x 50m easy swim, put it all together."], cooldown: ["2 x 25m easy kick or swim."] },
+                        ]},
+                        { week: 3, focus: "Isolate and improve arm stroke, feel the 'catch' of the water. Maintain good body position with pull buoy.", sessions: [
+                            { session: 1, total: 600, warmup: ["4 x 25m easy swim."], main: ["6 x 50m flutter kick with <b>flutter board</b> and <b>fins</b> (strong, consistent kick).", "4 x 50m swim with <b>pull buoy</b> (focus on arm stroke, high elbow catch, and strong finish. Legs stay still).", "4 x 25m 'Sculling Drill' (hands only, face in water, moving hands back and forth to feel the pressure of the water).", "4 x 50m easy swim (freestyle, try to incorporate good arm technique)."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 2, total: 650, warmup: ["4 x 25m easy swim."], main: ["8 x 50m freestyle, alternating 50m kick with board/fins, 50m swim with <b>pull buoy</b>.", "6 x 50m easy swim (freestyle, focus on linking kick and pull). Rest 30 seconds.", "4 x 25m 'Fingertip Drag' drill (recovery arm drags fingertips along the water surface). Encourages high elbow.", "2 x 100m continuous easy swim."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 3, total: 700, warmup: ["4 x 25m easy swim."], main: ["6 x 50m freestyle kick (3 with fins, 3 without).", "6 x 50m swim with <b>pull buoy</b>, focusing on the 'pull phase' – pushing water back.", "4 x 25m 'Broken Arrow' drill (start with one arm extended forward, other arm by side. Kick, then bring the arm by the side to meet the extended arm, then take a full stroke). Focus on streamlined entry.", "3 x 100m easy swim, try to maintain a consistent stroke count per length."], cooldown: ["2 x 25m easy kick or swim."] },
+                        ]},
+                        { week: 4, focus: "Combine kick and pull, maintain good body position and breathing over longer distances.", sessions: [
+                            { session: 1, total: 700, warmup: ["4 x 25m easy swim."], main: ["4 x 100m freestyle kick with <b>flutter board</b> (2 with fins, 2 without). Focus on smooth, continuous kick.", "4 x 100m swim with <b>pull buoy</b>, focusing on consistent pull and breathing rhythm.", "4 x 25m easy swim, focus on long, gliding strokes.", "2 x 50m 'Underwater Pull' drill (focus on feeling the water pressure with your hand and forearm underwater)."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 2, total: 750, warmup: ["6 x 25m easy swim or kick."], main: ["3 x 100m freestyle (moderate pace), rest 45 seconds.", "4 x 50m freestyle kick (2 with fins, 2 without), focus on strong kick.", "4 x 50m swim with <b>pull buoy</b>, focus on efficient arm pull.", "2 x 100m easy swim, try to maintain a consistent pace."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 3, total: 800, warmup: ["6 x 25m easy swim or kick."], main: ["2 x 150m easy freestyle, focus on smooth rhythm.", "4 x 75m freestyle kick (25m board, 25m fins, 25m no board/no fins).", "4 x 75m swim with <b>pull buoy</b>, focus on body roll and reaching forward.", "2 x 100m continuous freestyle, moderate pace."], cooldown: ["2 x 25m easy kick or swim."] },
+                        ]},
+                    ]
+                },
+                {
+                    month: 2,
+                    weeks: [
+                         { week: 5, focus: "Build upper body strength and refine the 'catch' using paddles.", sessions: [
+                            { session: 1, total: 800, warmup: ["6 x 25m easy swim."], main: ["4 x 100m freestyle kick (2 with fins, 2 without).", "4 x 100m swim with <b>pull buoy</b> and <b>paddles</b> (easy effort, focus on feeling the water pressure and smooth pull).", "4 x 50m freestyle, focus on long strokes.", "2 x 50m 'Dog Paddle' (keep head above water, focus on sculling hands to propel yourself)."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 2, total: 850, warmup: ["6 x 25m easy swim."], main: ["4 x 100m freestyle (moderate pace), rest 30-45 seconds.", "4 x 75m swim with <b>pull buoy</b> (focus on extending reach).", "4 x 75m swim with <b>paddles</b> (easy pace, focus on pull through).", "2 x 150m continuous easy swim."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 3, total: 900, warmup: ["6 x 25m easy swim."], main: ["3 x 150m freestyle, moderate pace, rest 45 seconds.", "4 x 50m freestyle kick with board and <b>fins</b> (fast kick, easy effort).", "4 x 50m swim with <b>pull buoy</b> and <b>paddles</b> (focus on powerful, consistent pull).", "2 x 100m 'Broken Arrow' drill (focus on clean entry).", "1 x 200m continuous easy swim."], cooldown: ["2 x 25m easy kick or swim."] },
+                        ]},
+                        { week: 6, focus: "Integrate all equipment for targeted improvements; build stamina for longer continuous swims.", sessions: [
+                            { session: 1, total: 900, warmup: ["6 x 25m easy swim."], main: ["5 x 100m freestyle (moderate pace), rest 30 seconds.", "4 x 50m freestyle kick with <b>fins</b> (fast and efficient).", "4 x 50m swim with <b>pull buoy</b> (focus on rotation).", "4 x 50m swim with <b>paddles</b> (focus on full extension and finish)."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 2, total: 950, warmup: ["6 x 25m easy swim."], main: ["3 x 200m easy freestyle, rest 1 minute.", "4 x 50m alternate: 25m kick with board/fins, 25m swim.", "4 x 50m alternate: 25m pull with buoy, 25m swim.", "4 x 25m sprint (fast but maintain form) with <b>fins</b>."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 3, total: 1000, warmup: ["6 x 25m easy swim."], main: ["1 x 400m continuous easy freestyle.", "4 x 100m freestyle (moderate pace), rest 45 seconds.", "4 x 50m freestyle with <b>pull buoy</b> and <b>paddles</b>, easy effort, focusing on smooth stroke.", "4 x 50m freestyle kick with <b>fins</b>, focusing on high tempo."], cooldown: ["2 x 25m easy kick or swim."] },
+                        ]},
+                        { week: 7, focus: "Extend continuous swimming distances, reinforce good habits, and smoothly integrate all stroke components.", sessions: [
+                            { session: 1, total: 1000, warmup: ["6 x 25m easy swim."], main: ["2 x 250m easy freestyle, rest 1 min. Focus on consistent pace and breathing.", "6 x 50m freestyle kick (3 with board, 3 with fins).", "6 x 50m swim (3 with <b>pull buoy</b>, 3 with <b>paddles</b>), easy effort."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 2, total: 1100, warmup: ["6 x 25m easy swim."], main: ["1 x 300m easy freestyle.", "4 x 100m freestyle (moderate pace), rest 30 seconds.", "4 x 50m 'Dog Paddle' (no equipment), focus on sculling action.", "4 x 50m '6-kick switch' drill (with fins).", "2 x 100m freestyle, building pace through each 100m."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 3, total: 1200, warmup: ["6 x 25m easy swim."], main: ["1 x 500m continuous easy freestyle. Focus on maintaining form and consistent breathing.", "6 x 75m freestyle (moderate pace), rest 45 seconds.", "4 x 50m alternate: 25m <b>pull buoy</b> + <b>paddles</b>, 25m swim.", "4 x 50m kick with <b>fins</b> (fast tempo)."], cooldown: ["2 x 25m easy kick or swim."] },
+                        ]},
+                        { week: 8, focus: "Build sustained aerobic capacity; introduce short bursts of moderate intensity.", sessions: [
+                            { session: 1, total: 1200, warmup: ["8 x 25m easy swim."], main: ["2 x 300m easy freestyle, rest 1 min.", "6 x 50m freestyle kick with board and <b>fins</b>, focus on powerful kick.", "6 x 50m swim with <b>pull buoy</b> and <b>paddles</b>, moderate effort, strong pull.", "4 x 25m freestyle (moderate pace)."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 2, total: 1300, warmup: ["8 x 25m easy swim."], main: ["1 x 400m easy freestyle.", "5 x 100m freestyle (moderate pace), rest 30 seconds.", "4 x 75m alternate: 25m kick with fins, 25m <b>pull buoy</b>, 25m swim.", "6 x 50m easy swim, focus on long strokes."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 3, total: 1400, warmup: ["8 x 25m easy swim."], main: ["1 x 600m continuous easy freestyle. Focus on maintaining consistent pace and rhythm.", "8 x 50m freestyle (moderate pace), rest 20-30 seconds.", "4 x 100m choice of kick (board/fins) or pull (buoy/paddles), easy effort.", "2 x 50m 'build' (start easy, finish fast)."], cooldown: ["2 x 25m easy kick or swim."] },
+                        ]},
+                    ]
+                },
+                {
+                    month: 3,
+                    weeks: [
+                        { week: 9, focus: "Introduce faster swimming in controlled intervals.", sessions: [
+                            { session: 1, total: 1400, warmup: ["8 x 25m easy swim."], main: ["2 x 300m easy freestyle, rest 1 min.", "8 x 50m freestyle (moderate to fast pace, focus on maintaining form), rest 30-45 seconds.", "4 x 100m freestyle kick (2 with fins, 2 without), focus on fast tempo.", "4 x 100m swim with <b>pull buoy</b> and <b>paddles</b>, focus on power."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 2, total: 1500, warmup: ["8 x 25m easy swim."], main: ["1 x 500m easy freestyle.", "6 x 100m freestyle (moderate pace), rest 30 seconds.", "8 x 25m freestyle (FAST), rest 15-20 seconds. Focus on maintaining form at speed.", "4 x 50m easy swim, focusing on recovery."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 3, total: 1600, warmup: ["8 x 25m easy swim."], main: ["1 x 700m continuous easy to moderate freestyle.", "8 x 75m freestyle (moderate pace), rest 30 seconds.", "4 x 50m 'build' (start easy, finish strong) with <b>fins</b>.", "4 x 50m freestyle with <b>pull buoy</b> (focus on powerful arm turnover)."], cooldown: ["2 x 25m easy kick or swim."] },
+                        ]},
+                        { week: 10, focus: "Integrate longer sustained efforts with shorter, faster intervals.", sessions: [
+                            { session: 1, total: 1600, warmup: ["8 x 25m easy swim."], main: ["2 x 400m easy to moderate freestyle, rest 1-1.5 min.", "10 x 50m freestyle (moderate pace), rest 20-30 seconds.", "4 x 100m freestyle kick with board, alternating 50m with fins, 50m without.", "4 x 50m easy swim."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 2, total: 1700, warmup: ["8 x 25m easy swim."], main: ["1 x 600m easy freestyle.", "8 x 75m freestyle (moderate pace), rest 30 seconds.", "6 x 50m swim with <b>pull buoy</b> and <b>paddles</b> (strong, steady effort).", "4 x 25m freestyle (sprint effort, focus on maintaining form)."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 3, total: 1800, warmup: ["8 x 25m easy swim."], main: ["1 x 800m continuous easy freestyle.", "6 x 100m freestyle (moderate to fast pace), rest 45 seconds.", "4 x 50m freestyle kick (2 with board, 2 with fins), fast.", "4 x 50m easy swim, focusing on recovery and length."], cooldown: ["2 x 25m easy kick or swim."] },
+                        ]},
+                         { week: 11, focus: "Challenge yourself to hold pace over longer distances; practice pacing.", sessions: [
+                            { session: 1, total: 1800, warmup: ["8 x 25m easy swim."], main: ["1 x 500m easy freestyle.", "3 x 200m freestyle (moderate pace), rest 45-60 seconds.", "8 x 50m freestyle kick with <b>fins</b> (fast).", "8 x 50m swim with <b>pull buoy</b> and <b>paddles</b> (focused power).", "4 x 25m freestyle (fast)."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 2, total: 1900, warmup: ["8 x 25m easy swim."], main: ["1 x 700m continuous easy to moderate freestyle.", "4 x 150m freestyle (moderate pace), rest 45 seconds.", "6 x 50m freestyle (moderate to fast), rest 20-30 seconds.", "4 x 50m easy swim."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 3, total: 2000, warmup: ["8 x 25m easy swim."], main: ["1 x 1000m continuous easy freestyle (focus on consistent technique and breathing).", "10 x 75m freestyle (moderate pace, focus on maintaining form), rest 30 seconds.", "4 x 50m choice of kick or pull drill (focus on specific technique).", "2 x 50m 'build' (fast finish)."], cooldown: ["2 x 25m easy kick or swim."] },
+                        ]},
+                        { week: 12, focus: "Put all your learned skills to the test in longer, more challenging sets. Assess progress.", sessions: [
+                            { session: 1, total: 1800, warmup: ["8 x 25m easy swim."], main: ["3 x 400m freestyle (moderate pace), rest 1-1.5 min.", "8 x 50m freestyle kick with <b>fins</b> (fast).", "8 x 50m swim with <b>pull buoy</b> and <b>paddles</b> (strong, controlled effort).", "4 x 25m freestyle (all-out sprint)."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 2, total: 1900, warmup: ["8 x 25m easy swim."], main: ["1 x 800m easy to moderate freestyle (try to hold a steady pace).", "10 x 100m freestyle (moderate pace), rest 30 seconds.", "4 x 50m '6-kick switch' drill (focus on strong rotation).", "4 x 50m easy swim."], cooldown: ["2 x 25m easy kick or swim."] },
+                            { session: 3, total: 2000, warmup: ["8 x 25m easy swim."], main: ["<b>Test Set:</b>", "1 x 500m freestyle (best effort, try to maintain consistent pace).", "Rest 2 minutes.", "1 x 200m freestyle (moderate pace).", "Rest 1 minute.", "4 x 50m freestyle (fast, with good form), rest 30 seconds.", "<b>Remainder of the workout:</b>", "4 x 100m choice of kick with board/fins or pull with buoy/paddles.", "4 x 50m easy swim."], cooldown: ["2 x 25m easy kick or swim."] },
+                        ]},
+                    ]
+                }
+            ]
+        };
+
+        let currentMonth = 1;
+        let currentWeek = 1;
+        let progressChart;
+
+        const monthNav = document.getElementById('month-nav');
+        const weekNav = document.getElementById('week-nav');
+        const weekTitle = document.getElementById('week-title');
+        const weekFocus = document.getElementById('week-focus');
+        const sessionCardsContainer = document.getElementById('session-cards');
+
+        function renderMonthNav() {
+            monthNav.innerHTML = '';
+            programData.months.forEach(m => {
+                const btn = document.createElement('button');
+                btn.textContent = `Month ${m.month}`;
+                btn.className = `nav-btn py-2 px-4 bg-white text-gray-700 font-medium hover:bg-gray-100 first:rounded-l-md last:rounded-r-md border border-gray-200 ${m.month === currentMonth ? 'nav-btn-active' : ''}`;
+                btn.onclick = () => {
+                    currentMonth = m.month;
+                    currentWeek = programData.months.find(m_ => m_.month === currentMonth).weeks[0].week;
+                    renderAll();
+                };
+                monthNav.appendChild(btn);
+            });
+        }
+
+        function renderWeekNav() {
+            weekNav.innerHTML = '';
+            const weeks = programData.months.find(m => m.month === currentMonth).weeks;
+            weeks.forEach(w => {
+                const btn = document.createElement('button');
+                btn.textContent = `Week ${w.week}`;
+                btn.className = `nav-btn py-2 px-4 bg-white text-gray-700 font-medium hover:bg-gray-100 first:rounded-l-md last:rounded-r-md border border-gray-200 ${w.week === currentWeek ? 'nav-btn-active' : ''}`;
+                btn.onclick = () => {
+                    currentWeek = w.week;
+                    renderAll();
+                };
+                weekNav.appendChild(btn);
+            });
+        }
+        
+        function renderSessionCards() {
+            const weekData = programData.months.find(m => m.month === currentMonth).weeks.find(w => w.week === currentWeek);
+            
+            weekTitle.textContent = `Month ${currentMonth}, Week ${currentWeek}`;
+            weekFocus.textContent = weekData.focus;
+            sessionCardsContainer.innerHTML = '';
+
+            weekData.sessions.forEach(session => {
+                const card = document.createElement('div');
+                card.className = 'session-card bg-gray-50 rounded-lg p-6 cursor-pointer';
+
+                let contentHTML = `
+                    <div class="flex justify-between items-center">
+                        <h4 class="text-xl font-bold text-cyan-700">Session ${session.session}</h4>
+                        <span class="text-lg font-semibold text-gray-500">${session.total}m</span>
+                    </div>
+                    <div class="details mt-4 text-sm text-gray-600 space-y-3 hidden">
+                        <div>
+                            <h5 class="font-semibold text-gray-800">Warm-up:</h5>
+                            <ul class="list-disc list-inside ml-2">${session.warmup.map(item => `<li>${item}</li>`).join('')}</ul>
+                        </div>
+                        <div>
+                            <h5 class="font-semibold text-gray-800">Main Set:</h5>
+                            <ul class="list-disc list-inside ml-2">${session.main.map(item => `<li>${item}</li>`).join('')}</ul>
+                        </div>
+                        <div>
+                            <h5 class="font-semibold text-gray-800">Cool-down:</h5>
+                            <ul class="list-disc list-inside ml-2">${session.cooldown.map(item => `<li>${item}</li>`).join('')}</ul>
+                        </div>
+                    </div>
+                `;
+                card.innerHTML = contentHTML;
+                card.onclick = () => {
+                    card.querySelector('.details').classList.toggle('hidden');
+                };
+                sessionCardsContainer.appendChild(card);
+            });
+             updateChartHighlight();
+        }
+        
+        function renderChart() {
+            const ctx = document.getElementById('progressChart').getContext('2d');
+            const allWeeks = programData.months.flatMap(m => m.weeks);
+            const weeklyTotals = allWeeks.map(w => w.sessions.reduce((sum, s) => sum + s.total, 0));
+            const labels = allWeeks.map(w => `W${w.week}`);
+
+            const data = {
+                labels: labels,
+                datasets: [{
+                    label: 'Total Weekly Volume (m)',
+                    data: weeklyTotals,
+                    fill: true,
+                    backgroundColor: 'rgba(14, 116, 144, 0.2)',
+                    borderColor: 'rgb(8, 145, 178)',
+                    tension: 0.3,
+                    pointBackgroundColor: 'rgb(8, 145, 178)',
+                    pointRadius: 4,
+                    pointHoverRadius: 8
+                }]
+            };
+
+            const options = {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Distance (meters)'
+                        }
+                    },
+                    x: {
+                         title: {
+                            display: true,
+                            text: 'Week of Program'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            };
+
+            if (progressChart) {
+                progressChart.destroy();
+            }
+            progressChart = new Chart(ctx, { type: 'line', data, options });
+        }
+        
+        function updateChartHighlight() {
+            if (!progressChart) return;
+            const weekIndex = programData.months.flatMap(m => m.weeks).findIndex(w => w.week === currentWeek);
+            
+            progressChart.data.datasets[0].pointRadius = progressChart.data.labels.map((_, i) => i === weekIndex ? 8 : 4);
+            progressChart.data.datasets[0].pointBackgroundColor = progressChart.data.labels.map((_, i) => i === weekIndex ? '#0e7490' : '#0891b2');
+            progressChart.update();
+        }
+
+        function renderAll() {
+            renderMonthNav();
+            renderWeekNav();
+            renderSessionCards();
+        }
+        
+        function setupModals() {
+            const conceptsModal = document.getElementById('concepts-modal');
+            const equipmentModal = document.getElementById('equipment-modal');
+            const conceptsBtn = document.getElementById('concepts-btn');
+            const equipmentBtn = document.getElementById('equipment-btn');
+            const closeConceptsBtn = document.getElementById('close-concepts-modal');
+            const closeEquipmentBtn = document.getElementById('close-equipment-modal');
+            const conceptsContent = document.getElementById('concepts-content');
+            const equipmentContent = document.getElementById('equipment-content');
+
+            programData.concepts.forEach(concept => {
+                const section = document.createElement('div');
+                const title = document.createElement('h3');
+                title.className = "text-lg font-semibold text-gray-800";
+                title.textContent = concept.title;
+                section.appendChild(title);
+                const list = document.createElement('ul');
+                list.className = "list-disc list-inside space-y-1 pl-2";
+                concept.points.forEach(point => {
+                    const item = document.createElement('li');
+                    item.textContent = point;
+                    list.appendChild(item);
+                });
+                section.appendChild(list);
+                conceptsContent.appendChild(section);
+            });
+
+            programData.equipment.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'flex items-start';
+                const iconSpan = document.createElement('span');
+                iconSpan.className = 'text-2xl mr-4';
+                iconSpan.textContent = item.icon;
+                const textDiv = document.createElement('div');
+                const nameP = document.createElement('p');
+                nameP.className = 'font-bold text-gray-800';
+                nameP.textContent = item.name;
+                const purposeP = document.createElement('p');
+                purposeP.textContent = item.purpose;
+                textDiv.appendChild(nameP);
+                textDiv.appendChild(purposeP);
+                div.appendChild(iconSpan);
+                div.appendChild(textDiv);
+                equipmentContent.appendChild(div);
+            });
+
+            function openModal(modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                setTimeout(() => {
+                    modal.querySelector('.modal-backdrop').classList.add('opacity-100');
+                    modal.querySelector('.modal-content').classList.remove('scale-95');
+                }, 10);
+            }
+
+            function closeModal(modal) {
+                modal.querySelector('.modal-backdrop').classList.remove('opacity-100');
+                modal.querySelector('.modal-content').classList.add('scale-95');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }, 300);
+            }
+
+            conceptsBtn.onclick = () => openModal(conceptsModal);
+            equipmentBtn.onclick = () => openModal(equipmentModal);
+            closeConceptsBtn.onclick = () => closeModal(conceptsModal);
+            closeEquipmentBtn.onclick = () => closeModal(equipmentModal);
+            conceptsModal.onclick = (e) => { if(e.target === conceptsModal) closeModal(conceptsModal); };
+            equipmentModal.onclick = (e) => { if(e.target === equipmentModal) closeModal(equipmentModal); };
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderAll();
+            renderChart();
+            setupModals();
+        });
+    </script>
+</body>
+</html>
